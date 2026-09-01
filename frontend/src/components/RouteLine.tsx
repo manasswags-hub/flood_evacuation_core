@@ -13,81 +13,264 @@ export const RouteLine: React.FC<RouteLineProps> = ({
   isRerouted = false,
   color,
 }) => {
-  if (!coordinates || coordinates.length < 2) return null;
+  if (!coordinates || coordinates.length < 2) {
+    return null;
+  }
 
-  // Build SVG polyline points string
-  const pointsString = coordinates.map((c) => `${c.x},${c.y}`).join(' ');
-  const strokeColor = color || (isRerouted ? '#F59E0B' : '#0D9488');
-  const glowColor = isRerouted ? 'rgba(245, 158, 11, 0.45)' : 'rgba(13, 148, 136, 0.45)';
+  // Convert the route coordinates into SVG points.
+  const pointsString = coordinates
+    .filter(
+      (coordinate) =>
+        Number.isFinite(coordinate.x) &&
+        Number.isFinite(coordinate.y),
+    )
+    .map(
+      (coordinate) =>
+        `${coordinate.x},${coordinate.y}`,
+    )
+    .join(' ');
+
+  if (!pointsString) {
+    return null;
+  }
+
+  const strokeColor =
+    color ||
+    (isRerouted
+      ? '#F59E0B'
+      : '#14B8A6');
+
+  const glowColor =
+    isRerouted
+      ? 'rgba(245, 158, 11, 0.65)'
+      : 'rgba(20, 184, 166, 0.65)';
+
+  /*
+   * Use the actual route geometry as the key.
+   *
+   * This is important because after rerouting the backend
+   * returns completely different OSRM coordinates.
+   */
+  const routeKey =
+    pointsString;
 
   return (
-    <g className="pointer-events-none transition-all duration-500 ease-in-out">
-      {/* Route Glow Underlay */}
+    <g
+      key={routeKey}
+      className="pointer-events-none"
+    >
+      {/* ====================================================
+          OUTER GLOW
+      ==================================================== */}
+
       <motion.polyline
-        key={`glow-${isRerouted ? 'rerouted' : 'primary'}`}
-        initial={{ opacity: 0.2 }}
-        animate={{ opacity: 1, points: pointsString }}
-        transition={{ duration: 0.5, ease: 'easeInOut' }}
+        key={`glow-${routeKey}`}
+        initial={{
+          opacity: 0,
+        }}
+        animate={{
+          opacity: 1,
+          points: pointsString,
+        }}
+        transition={{
+          duration: 0.45,
+          ease: 'easeInOut',
+        }}
         points={pointsString}
         fill="none"
         stroke={glowColor}
-        strokeWidth="14"
+        strokeWidth="20"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
-      {/* Dark Border / Highway Base */}
+      {/* ====================================================
+          DARK OUTLINE
+      ==================================================== */}
+
       <motion.polyline
-        key={`base-${isRerouted ? 'rerouted' : 'primary'}`}
-        animate={{ points: pointsString }}
-        transition={{ duration: 0.5, ease: 'easeInOut' }}
+        key={`outline-${routeKey}`}
+        initial={{
+          opacity: 0,
+        }}
+        animate={{
+          opacity: 1,
+          points: pointsString,
+        }}
+        transition={{
+          duration: 0.4,
+          ease: 'easeInOut',
+        }}
         points={pointsString}
         fill="none"
         stroke="#020617"
-        strokeWidth="8"
+        strokeWidth="12"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
-      {/* Main Solid Route Line */}
+      {/* ====================================================
+          MAIN EVACUATION ROUTE
+      ==================================================== */}
+
       <motion.polyline
-        key={`main-${isRerouted ? 'rerouted' : 'primary'}`}
-        initial={{ strokeDashoffset: 100 }}
-        animate={{ strokeDashoffset: 0, points: pointsString }}
-        transition={{ duration: 0.5, ease: 'easeInOut' }}
+        key={`route-${routeKey}`}
+        initial={{
+          opacity: 0,
+          pathLength: 0,
+        }}
+        animate={{
+          opacity: 1,
+          pathLength: 1,
+          points: pointsString,
+        }}
+        transition={{
+          duration: 0.8,
+          ease: 'easeInOut',
+        }}
         points={pointsString}
         fill="none"
         stroke={strokeColor}
-        strokeWidth="5"
+        strokeWidth="7"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="transition-colors duration-500"
       />
 
-      {/* Animated Directional Dash Flow */}
-      <polyline
+      {/* ====================================================
+          CENTER DIRECTION LINE
+      ==================================================== */}
+
+      <motion.polyline
+        key={`center-${routeKey}`}
+        initial={{
+          opacity: 0,
+        }}
+        animate={{
+          opacity: 0.95,
+          points: pointsString,
+        }}
+        transition={{
+          duration: 0.5,
+        }}
         points={pointsString}
         fill="none"
-        stroke="#F8FAFC"
+        stroke="#FFFFFF"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="animate-route-flow opacity-85"
+        strokeDasharray="10 8"
+        className="animate-route-flow"
       />
 
-      {/* Intermediate Turn Waypoint Nodes */}
-      {coordinates.slice(1, -1).map((coord, idx) => (
-        <motion.g
-          key={`turn-node-${idx}-${coord.x}-${coord.y}`}
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 0.3, delay: idx * 0.05 }}
-          transform={`translate(${coord.x}, ${coord.y})`}
+      {/* ====================================================
+          ROUTE WAYPOINTS
+      ==================================================== */}
+
+      {coordinates
+        .filter(
+          (coordinate) =>
+            Number.isFinite(coordinate.x) &&
+            Number.isFinite(coordinate.y),
+        )
+        .slice(1, -1)
+        .map((coordinate, index) => (
+          <motion.g
+            key={`waypoint-${routeKey}-${index}-${coordinate.x}-${coordinate.y}`}
+            initial={{
+              opacity: 0,
+              scale: 0,
+            }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+            }}
+            transition={{
+              duration: 0.25,
+              delay:
+                Math.min(index, 8) *
+                0.03,
+            }}
+            transform={`translate(${coordinate.x}, ${coordinate.y})`}
+          >
+            <circle
+              cx="0"
+              cy="0"
+              r="6"
+              fill="#020617"
+              stroke={strokeColor}
+              strokeWidth="3"
+            />
+
+            <circle
+              cx="0"
+              cy="0"
+              r="2.5"
+              fill="#FFFFFF"
+            />
+          </motion.g>
+        ))}
+
+      {/* ====================================================
+          START MARKER
+      ==================================================== */}
+
+      {coordinates[0] && (
+        <g
+          transform={`translate(${coordinates[0].x}, ${coordinates[0].y})`}
         >
-          <circle cx="0" cy="0" r="5" fill="#0F172A" stroke={strokeColor} strokeWidth="2.5" />
-          <circle cx="0" cy="0" r="2" fill="#FFFFFF" />
-        </motion.g>
-      ))}
+          <circle
+            cx="0"
+            cy="0"
+            r="10"
+            fill="#020617"
+            stroke={strokeColor}
+            strokeWidth="3"
+          />
+
+          <circle
+            cx="0"
+            cy="0"
+            r="4"
+            fill="#FFFFFF"
+          />
+        </g>
+      )}
+
+      {/* ====================================================
+          DESTINATION MARKER
+      ==================================================== */}
+
+      {coordinates[
+        coordinates.length - 1
+      ] && (
+        <g
+          transform={`translate(${
+            coordinates[
+              coordinates.length - 1
+            ].x
+          }, ${
+            coordinates[
+              coordinates.length - 1
+            ].y
+          })`}
+        >
+          <circle
+            cx="0"
+            cy="0"
+            r="11"
+            fill="#020617"
+            stroke={strokeColor}
+            strokeWidth="3"
+          />
+
+          <circle
+            cx="0"
+            cy="0"
+            r="4"
+            fill={strokeColor}
+          />
+        </g>
+      )}
     </g>
   );
 };

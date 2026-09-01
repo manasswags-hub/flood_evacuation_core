@@ -1,16 +1,45 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import requests
 import json
 from pathlib import Path
 from math import radians, sin, cos, sqrt, atan2
 
+from p3.personalization import personalize_routes
+
+
 app = FastAPI()
 
 
-# --------------------------------------------------
+# ============================================================
+# CORS
+# ============================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============================================================
+# PATHS
+# ============================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+
+
+# ============================================================
 # HOME
-# --------------------------------------------------
+# ============================================================
 
 @app.get("/")
 def home():
@@ -19,41 +48,73 @@ def home():
     }
 
 
-# --------------------------------------------------
+# ============================================================
 # USER LOCATION
-# --------------------------------------------------
+# ============================================================
 
 class Location(BaseModel):
     latitude: float
     longitude: float
+    accuracy: Optional[float] = None
+    timestamp: Optional[str] = None
 
 
 @app.post("/api/location")
 def receive_location(location: Location):
     return {
+        "status": "success",
         "latitude": location.latitude,
         "longitude": location.longitude,
         "message": "Location received successfully"
     }
 
 
-# --------------------------------------------------
-# LOAD SHELTERS
-# --------------------------------------------------
+# ============================================================
+# REQUEST MODELS
+# ============================================================
+
+class SafestRouteRequest(BaseModel):
+    latitude: float
+    longitude: float
+    group: Optional[str] = "alone"
+    traveling_with: Optional[str] = "alone"
+    mobility: Optional[str] = "normal"
+    transport: Optional[str] = "walking"
+    transport_mode: Optional[str] = "walking"
+
+
+class RerouteRequest(SafestRouteRequest):
+    route_id: Optional[str] = None
+    shelter_id: Optional[str] = None
+    profile: Optional[dict] = None
+
+
+# ============================================================
+# LOAD JSON DATA
+# ============================================================
+
+def load_json(filename):
+    file_path = DATA_DIR / filename
+
+    with open(
+        file_path,
+        "r",
+        encoding="utf-8"
+    ) as file:
+        return json.load(file)
+
 
 def load_shelters():
-
-    file_path = Path(__file__).parent / "data" / "shelters.json"
-
-    with open(file_path, "r", encoding="utf-8") as file:
-        shelters = json.load(file)
-
-    return shelters
+    return load_json("shelters.json")
 
 
-# --------------------------------------------------
-# GET ALL SHELTERS
-# --------------------------------------------------
+def load_flood_zones():
+    return load_json("flood_zones.json")
+
+
+# ============================================================
+# SHELTER APIs
+# ============================================================
 
 @app.get("/api/shelters")
 def get_shelters():
@@ -65,12 +126,10 @@ def get_shelters():
     }
 
 
-# --------------------------------------------------
-# GET SHELTER AVAILABILITY
-# --------------------------------------------------
-
 @app.get("/api/shelters/{shelter_id}/availability")
-def get_shelter_availability(shelter_id: str):
+def get_shelter_availability(
+    shelter_id: str
+):
 
     shelters = load_shelters()
 
@@ -79,13 +138,26 @@ def get_shelter_availability(shelter_id: str):
         if shelter["shelter_id"] == shelter_id:
 
             return {
-                "shelter_id": shelter["shelter_id"],
-                "name": shelter["name"],
-                "capacity": shelter["capacity"],
-                "occupancy": shelter["occupancy"],
-                "available_capacity": shelter["available_capacity"],
-                "is_available": shelter["is_available"],
-                "is_full": shelter["is_full"]
+                "shelter_id":
+                    shelter["shelter_id"],
+
+                "name":
+                    shelter["name"],
+
+                "capacity":
+                    shelter["capacity"],
+
+                "occupancy":
+                    shelter["occupancy"],
+
+                "available_capacity":
+                    shelter["available_capacity"],
+
+                "is_available":
+                    shelter["is_available"],
+
+                "is_full":
+                    shelter["is_full"]
             }
 
     return {
@@ -93,44 +165,57 @@ def get_shelter_availability(shelter_id: str):
     }
 
 
-# --------------------------------------------------
-# LOAD FLOOD ZONES
-# --------------------------------------------------
+def get_available_shelters():
 
-def load_flood_zones():
+    shelters = load_shelters()
 
-    file_path = Path(__file__).parent / "data" / "flood_zones.json"
+    return [
+        shelter
+        for shelter in shelters
+        if shelter.get(
+            "is_available",
+            False
+        )
+        and not shelter.get(
+            "is_full",
+            False
+        )
+        and shelter.get(
+            "available_capacity",
+            0
+        ) > 0
+    ]
 
-    with open(file_path, "r", encoding="utf-8") as file:
-        flood_zones = json.load(file)
 
-    return flood_zones
-
-
-# --------------------------------------------------
-# GET ALL FLOOD ZONES
-# --------------------------------------------------
+# ============================================================
+# FLOOD ZONES
+# ============================================================
 
 @app.get("/api/flood-zones")
 def get_flood_zones():
 
-    flood_zones = load_flood_zones()
-
     return {
-        "flood_zones": flood_zones
+        "flood_zones":
+            load_flood_zones()
     }
 
 
-# --------------------------------------------------
-# CALCULATE DISTANCE BETWEEN TWO POINTS
-# --------------------------------------------------
+# ============================================================
+# DISTANCE CALCULATION
+# ============================================================
 
-def calculate_distance_km(lat1, lon1, lat2, lon2):
+def calculate_distance_km(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+):
 
     earth_radius = 6371.0
 
     lat1 = radians(lat1)
     lon1 = radians(lon1)
+
     lat2 = radians(lat2)
     lon2 = radians(lon2)
 
@@ -152,11 +237,13 @@ def calculate_distance_km(lat1, lon1, lat2, lon2):
     return earth_radius * c
 
 
-# --------------------------------------------------
-# CHECK ROUTE FLOOD RISK
-# --------------------------------------------------
+# ============================================================
+# FLOOD RISK
+# ============================================================
 
-def check_route_flood_risk(route_coordinates):
+def check_route_flood_risk(
+    route_coordinates
+):
 
     flood_zones = load_flood_zones()
 
@@ -166,7 +253,7 @@ def check_route_flood_risk(route_coordinates):
 
     for coordinate in route_coordinates:
 
-        # OSRM coordinates are:
+        # OSRM GeoJSON:
         # [longitude, latitude]
 
         route_longitude = coordinate[0]
@@ -181,10 +268,11 @@ def check_route_flood_risk(route_coordinates):
                 zone["longitude"]
             )
 
-            if distance < closest_distance:
-                closest_distance = distance
+            closest_distance = min(
+                closest_distance,
+                distance
+            )
 
-            # Prototype flood-risk threshold
             if distance <= 0.30:
 
                 if zone["risk_level"] == "high":
@@ -198,10 +286,7 @@ def check_route_flood_risk(route_coordinates):
 
                     highest_risk = "medium"
 
-    # --------------------------------------------------
-    # SAFETY SCORE
-    # --------------------------------------------------
-
+    # Objective safety score
     if highest_risk == "high":
 
         safety_score = 40
@@ -215,37 +300,101 @@ def check_route_flood_risk(route_coordinates):
         safety_score = 95
 
     return {
-        "flood_risk": highest_risk,
-        "safety_score": safety_score,
-        "closest_flood_zone_distance_km": round(
-            closest_distance,
-            3
-        )
+        "flood_risk":
+            highest_risk,
+
+        "safety_score":
+            safety_score,
+
+        "closest_flood_zone_distance_km":
+            round(
+                closest_distance,
+                3
+            )
     }
 
 
-# --------------------------------------------------
-# ROUTES
-# --------------------------------------------------
+# ============================================================
+# PROFILE RESOLUTION
+# ============================================================
 
-@app.get("/api/routes")
-def get_routes(
-    latitude: float,
-    longitude: float,
-    destination_latitude: float,
-    destination_longitude: float,
-    shelter_id: str
+def resolve_profile(request):
+
+    transport = (
+        request.transport_mode
+        or request.transport
+        or "walking"
+    ).lower()
+
+    mobility = (
+        request.mobility
+        or "normal"
+    ).lower()
+
+    # Elderly profile
+    if mobility in [
+        "elderly",
+        "senior",
+        "limited"
+    ]:
+        return "elderly"
+
+    # Two wheeler profile
+    if transport in [
+        "two_wheeler",
+        "two-wheeler",
+        "bike",
+        "motorcycle"
+    ]:
+        return "two_wheeler"
+
+    # Four wheeler profile
+    if transport in [
+        "four_wheeler",
+        "four-wheeler",
+        "car",
+        "vehicle"
+    ]:
+        return "four_wheeler"
+
+    # Default
+    return "walking"
+
+
+# ============================================================
+# OSRM ROUTING
+# ============================================================
+
+def get_osrm_routes(
+    latitude,
+    longitude,
+    destination_latitude,
+    destination_longitude,
+    shelter_id,
+    transport_mode="walking"
 ):
 
-    # --------------------------------------------------
-    # OSRM ROUTING
-    # --------------------------------------------------
+    # Walking/elderly use walking routes.
+    # Two-wheeler/four-wheeler use vehicle routing.
+
+    if transport_mode == "walking":
+
+        profile = "foot"
+
+    else:
+
+        profile = "driving"
+
 
     url = (
-        f"https://router.project-osrm.org/route/v1/driving/"
+        f"https://router.project-osrm.org/"
+        f"route/v1/"
+        f"{profile}/"
         f"{longitude},{latitude};"
-        f"{destination_longitude},{destination_latitude}"
+        f"{destination_longitude},"
+        f"{destination_latitude}"
     )
+
 
     params = {
         "overview": "full",
@@ -253,137 +402,633 @@ def get_routes(
         "alternatives": "true"
     }
 
+
     response = requests.get(
         url,
         params=params,
         timeout=20
     )
 
+
+    response.raise_for_status()
+
     data = response.json()
+
 
     if data.get("code") != "Ok":
 
-        return {
-            "error": "Route could not be calculated"
-        }
+        return []
+
 
     routes = []
 
-    for index, route in enumerate(data["routes"]):
 
-        route_coordinates = route["geometry"]["coordinates"]
+    for index, route in enumerate(
+        data.get("routes", [])
+    ):
 
-        # --------------------------------------------------
-        # FLOOD RISK CHECK
-        # --------------------------------------------------
-
-        flood_result = check_route_flood_risk(
-            route_coordinates
+        route_coordinates = (
+            route["geometry"]["coordinates"]
         )
+
+
+        # ----------------------------------------------------
+        # FLOOD RISK
+        # ----------------------------------------------------
+
+        flood_result = (
+            check_route_flood_risk(
+                route_coordinates
+            )
+        )
+
+
+        # ----------------------------------------------------
+        # ROAD CONDITION
+        # ----------------------------------------------------
+
+        if flood_result[
+            "flood_risk"
+        ] == "high":
+
+            road_condition = "poor"
+
+        elif flood_result[
+            "flood_risk"
+        ] == "medium":
+
+            road_condition = "moderate"
+
+        else:
+
+            road_condition = "good"
+
+
+        # ----------------------------------------------------
+        # DISTANCE
+        # ----------------------------------------------------
+
+        distance_km = (
+            route["distance"] / 1000
+        )
+
+
+        # ----------------------------------------------------
+        # ETA
+        # ----------------------------------------------------
+
+        if transport_mode == "walking":
+
+            # Realistic walking speed.
+            # Approximately 5 km/h.
+
+            walking_speed_kmh = 5.0
+
+            eta_minutes = round(
+                (
+                    distance_km
+                    / walking_speed_kmh
+                )
+                * 60
+            )
+
+        else:
+
+            # Vehicle ETA comes from OSRM.
+
+            eta_minutes = round(
+                route["duration"] / 60
+            )
+
+
+        # Prevent an impossible zero-minute ETA.
+
+        eta_minutes = max(
+            1,
+            eta_minutes
+        )
+
 
         routes.append({
 
-            "route_id": f"R{index + 1:02d}",
+            "route_id":
+                f"{shelter_id}-R{index + 1:02d}",
 
-            "shelter_id": shelter_id,
+            "shelter_id":
+                shelter_id,
 
-            "distance_km": round(
-                route["distance"] / 1000,
-                2
-            ),
+            "distance_km":
+                round(
+                    distance_km,
+                    2
+                ),
 
-            "eta_minutes": round(
-                route["duration"] / 60
-            ),
+            "eta_minutes":
+                eta_minutes,
 
-            "transport_mode": "vehicle",
+            "transport_mode":
+                transport_mode,
 
-            "route_coordinates": route_coordinates,
+            "accessibility":
+                "accessible",
 
-            "flood_risk": flood_result["flood_risk"],
+            "route_coordinates":
+                route_coordinates,
 
-            "safety_score": flood_result["safety_score"],
-
-            "closest_flood_zone_distance_km":
+            "flood_risk":
                 flood_result[
-                    "closest_flood_zone_distance_km"
-                ]
+                    "flood_risk"
+                ],
+
+            "safety_score":
+                flood_result[
+                    "safety_score"
+                ],
+
+            "safety_factors": {
+
+                "flood_exposure":
+                    (
+                        1.0
+                        if flood_result[
+                            "flood_risk"
+                        ] == "high"
+
+                        else 0.5
+                        if flood_result[
+                            "flood_risk"
+                        ] == "medium"
+
+                        else 0.1
+                    ),
+
+                "road_condition":
+                    road_condition,
+
+                "road_blocked":
+                    (
+                        flood_result[
+                            "flood_risk"
+                        ] == "high"
+                    )
+            }
         })
 
-    return {
-        "shelter_id": shelter_id,
-        "routes": routes
-    }
+
+    return routes
 
 
-# --------------------------------------------------
-# SAFEST ROUTE
-# --------------------------------------------------
+# ============================================================
+# BUILD CANDIDATE ROUTES
+# ============================================================
 
-@app.get("/api/safest-route")
-def get_safest_route(
-    latitude: float,
-    longitude: float,
-    destination_latitude: float,
-    destination_longitude: float,
-    shelter_id: str
+def build_candidate_routes(
+    latitude,
+    longitude,
+    transport_mode,
+    exclude_route_ids=None,
+    exclude_shelter_ids=None,
+    only_shelter_id=None
 ):
 
-    # Get routes from existing route function
-
-    route_data = get_routes(
-        latitude=latitude,
-        longitude=longitude,
-        destination_latitude=destination_latitude,
-        destination_longitude=destination_longitude,
-        shelter_id=shelter_id
+    exclude_route_ids = (
+        exclude_route_ids or []
     )
 
-    # Check for route calculation error
+    exclude_shelter_ids = (
+        exclude_shelter_ids or []
+    )
 
-    if "error" in route_data:
 
-        return route_data
+    shelters = get_available_shelters()
 
-    routes = route_data["routes"]
 
-    if not routes:
+    # --------------------------------------------------------
+    # Exclude shelters that cannot be used
+    # --------------------------------------------------------
 
-        return {
-            "error": "No routes available"
-        }
+    if exclude_shelter_ids:
 
-    # --------------------------------------------------
-    # REMOVE HIGH-RISK ROUTES
-    # --------------------------------------------------
+        shelters = [
+            shelter
+            for shelter in shelters
+            if shelter["shelter_id"]
+            not in exclude_shelter_ids
+        ]
 
-    safe_routes = [
-        route
-        for route in routes
-        if route["flood_risk"] != "high"
-    ]
 
-    # If every route has high flood risk,
-    # use all routes and choose the best one
+    # --------------------------------------------------------
+    # If a specific shelter was requested
+    # --------------------------------------------------------
 
-    if not safe_routes:
+    if only_shelter_id:
 
-        safe_routes = routes
+        shelters = [
+            shelter
+            for shelter in shelters
+            if shelter["shelter_id"]
+            == only_shelter_id
+        ]
 
-    # --------------------------------------------------
-    # SELECT SAFEST ROUTE
-    # --------------------------------------------------
 
-    recommended_route = max(
-        safe_routes,
-        key=lambda route: (
-            route["safety_score"],
-            -route["eta_minutes"]
+    all_routes = []
+
+
+    for shelter in shelters:
+
+        try:
+
+            routes = get_osrm_routes(
+
+                latitude=latitude,
+
+                longitude=longitude,
+
+                destination_latitude=
+                    shelter["latitude"],
+
+                destination_longitude=
+                    shelter["longitude"],
+
+                shelter_id=
+                    shelter["shelter_id"],
+
+                transport_mode=
+                    transport_mode
+            )
+
+
+            for route in routes:
+
+                if (
+                    route["route_id"]
+                    not in exclude_route_ids
+                ):
+
+                    all_routes.append(
+                        route
+                    )
+
+
+        except Exception as error:
+
+            print(
+                f"OSRM failed for "
+                f"{shelter['shelter_id']}: "
+                f"{error}"
+            )
+
+
+    return all_routes
+
+
+# ============================================================
+# SAFEST ROUTE
+# ============================================================
+
+@app.post("/api/safest-route")
+def get_safest_route(
+    request: SafestRouteRequest
+):
+
+    profile = resolve_profile(
+        request
+    )
+
+
+    # P3 profile determines routing type.
+
+    if profile in [
+        "walking",
+        "elderly"
+    ]:
+
+        transport_mode = "walking"
+
+    else:
+
+        transport_mode = "vehicle"
+
+
+    # --------------------------------------------------------
+    # Generate routes to ALL available shelters
+    # --------------------------------------------------------
+
+    candidate_routes = (
+        build_candidate_routes(
+
+            latitude=request.latitude,
+
+            longitude=request.longitude,
+
+            transport_mode=
+                transport_mode
         )
     )
 
+
+    if not candidate_routes:
+
+        return {
+
+            "status":
+                "no_routes",
+
+            "recommended_route":
+                None,
+
+            "message":
+                "No evacuation routes are currently available."
+        }
+
+
+    # --------------------------------------------------------
+    # P3 PERSONALIZATION
+    # --------------------------------------------------------
+
+    personalized_result = (
+        personalize_routes(
+            candidate_routes,
+            profile
+        )
+    )
+
+
+    if (
+        personalized_result["status"]
+        != "success"
+    ):
+
+        return {
+
+            "status":
+                "no_routes",
+
+            "recommended_route":
+                None
+        }
+
+
+    recommended = (
+        personalized_result[
+            "recommended_route"
+        ]
+    )
+
+
     return {
-        "shelter_id": shelter_id,
-        "recommended_route": recommended_route,
-        "reason": "Safest available route based on flood risk and safety score"
+
+        "status":
+            "success",
+
+        "profile":
+            profile,
+
+        "shelter_id":
+            recommended[
+                "shelter_id"
+            ],
+
+        "recommended_route":
+            recommended,
+
+        "ranked_routes":
+            personalized_result[
+                "ranked_routes"
+            ],
+
+        "reason":
+            (
+                "Safest available route "
+                "selected using objective "
+                "safety and personalized "
+                "preferences."
+            )
+    }
+
+
+# ============================================================
+# DYNAMIC REROUTE
+# ============================================================
+
+@app.post("/api/reroute")
+def reroute(
+    request: RerouteRequest
+):
+
+    profile = resolve_profile(
+        request
+    )
+
+
+    if profile in [
+        "walking",
+        "elderly"
+    ]:
+
+        transport_mode = "walking"
+
+    else:
+
+        transport_mode = "vehicle"
+
+
+    # --------------------------------------------------------
+    # CURRENT ROUTE + CURRENT SHELTER ARE UNAVAILABLE
+    # --------------------------------------------------------
+
+    unavailable_routes = []
+
+    unavailable_shelters = []
+
+
+    if request.route_id:
+
+        unavailable_routes.append(
+            request.route_id
+        )
+
+
+    if request.shelter_id:
+
+        unavailable_shelters.append(
+            request.shelter_id
+        )
+
+
+    # --------------------------------------------------------
+    # GENERATE ALTERNATE ROUTES
+    #
+    # IMPORTANT:
+    # The current shelter is also excluded.
+    # Therefore reroute MUST choose another shelter.
+    # --------------------------------------------------------
+
+    candidate_routes = (
+        build_candidate_routes(
+
+            latitude=request.latitude,
+
+            longitude=request.longitude,
+
+            transport_mode=
+                transport_mode,
+
+            exclude_route_ids=
+                unavailable_routes,
+
+            exclude_shelter_ids=
+                unavailable_shelters
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # EXTRA SAFETY CHECK
+    #
+    # Even after filtering inside
+    # build_candidate_routes(), make
+    # absolutely sure the current shelter
+    # cannot appear in the reroute result.
+    # --------------------------------------------------------
+
+    if request.shelter_id:
+
+        candidate_routes = [
+            route
+            for route in candidate_routes
+            if route["shelter_id"]
+            != request.shelter_id
+        ]
+
+
+    if not candidate_routes:
+
+        return {
+
+            "status":
+                "no_routes",
+
+            "recommended_route":
+                None,
+
+            "message":
+                (
+                    "No alternate shelter "
+                    "route is currently available."
+                )
+        }
+
+
+    # --------------------------------------------------------
+    # P3 RANKING
+    # --------------------------------------------------------
+
+    personalized_result = (
+        personalize_routes(
+            candidate_routes,
+            profile
+        )
+    )
+
+
+    if (
+        personalized_result["status"]
+        != "success"
+    ):
+
+        return {
+
+            "status":
+                "no_routes",
+
+            "recommended_route":
+                None
+        }
+
+
+    recommended = (
+        personalized_result[
+            "recommended_route"
+        ]
+    )
+
+
+    # --------------------------------------------------------
+    # FINAL SAFETY CHECK
+    #
+    # Never return the same shelter.
+    # --------------------------------------------------------
+
+    if (
+        request.shelter_id
+        and recommended["shelter_id"]
+        == request.shelter_id
+    ):
+
+        return {
+
+            "status":
+                "no_routes",
+
+            "recommended_route":
+                None,
+
+            "message":
+                (
+                    "Personalization selected "
+                    "the current shelter. "
+                    "No valid alternate shelter "
+                    "was found."
+                )
+        }
+
+
+    return {
+
+        "status":
+            "success",
+
+        "profile":
+            profile,
+
+        "previous_route_id":
+            request.route_id,
+
+        "previous_shelter_id":
+            request.shelter_id,
+
+        "shelter_id":
+            recommended[
+                "shelter_id"
+            ],
+
+        "route_id":
+            recommended[
+                "route_id"
+            ],
+
+        "recommended_route":
+            recommended,
+
+        "ranked_routes":
+            personalized_result[
+                "ranked_routes"
+            ],
+
+        "reroute_reason":
+            (
+                "The current route and current "
+                "shelter were excluded. A new "
+                "safe personalized route to an "
+                "alternate shelter was selected."
+            ),
+
+        "reason":
+            (
+                "Dynamic rerouting selected "
+                "an alternate shelter using "
+                "current route safety and "
+                "personalized preferences."
+            )
     }
