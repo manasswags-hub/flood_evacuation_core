@@ -1,0 +1,38 @@
+[
+  {
+    "id": "R1",
+    "shelter_id": "S1",
+    "distance_km": 3,
+    "eta_minutes": 12,
+    "safety_score": 0.0,
+    "accessibility": "accessible",
+    "transport_mode": "walking",
+    "route_coordinates": [
+      [12.8301, 80.2301],
+      [12.8310, 80.2315]
+    ],
+    "safety_factors": {
+      "flood_exposure": 0.10,
+      "road_condition": "good",
+      "road_blocked": false
+    }
+  },
+  {
+    "id": "R2",
+    "shelter_id": "S2",
+    "distance_km": 4,
+    "eta_minutes": 15,
+    "safety_score": 0.0,
+    "accessibility": "accessible",
+    "transport_mode": "walking",
+    "route_coordinates": [
+      [12.8301, 80.2301],
+      [12.8320, 80.2340]
+    ],
+    "safety_factors": {
+      "flood_exposure": 0.05,
+      "road_condition": "good",
+      "road_blocked": false
+    }
+  }
+]
