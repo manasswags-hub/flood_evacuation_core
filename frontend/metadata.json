@@ -1,0 +1,6 @@
+{
+  "name": "SafeRoute",
+  "description": "A mobile-first emergency evacuation web app with live route tracking, high-contrast cartography, and dynamic reroute alerts.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

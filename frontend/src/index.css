@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --navy-900: #020617;
+  --navy-800: #0f172a;
+  --navy-700: #1e293b;
+  --amber: #f59e0b;
+  --teal: #0d9488;
+  --slate: #f8fafc;
+  --slate-400: #94a3b8;
+}
+
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Plus Jakarta Sans', Arial, sans-serif;
+    background-color: var(--navy-900);
+    color: var(--slate);
+  }
+  
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Keyframes for radar pulse & alert bar */
+@keyframes radar-pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-radar {
+  animation: radar-pulse 2.4s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.animate-route-flow {
+  stroke-dasharray: 8 6;
+  animation: dash-flow 1.5s linear infinite;
+}
+
+
