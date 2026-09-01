@@ -3,12 +3,16 @@
     "id": "S1",
     "name": "Shelter A",
     "capacity": 100,
-    "occupied": 20
+    "occupied": 20,
+    "latitude": 12.8310,
+    "longitude": 80.2315
   },
   {
     "id": "S2",
     "name": "Shelter B",
     "capacity": 100,
-    "occupied": 30
+    "occupied": 30,
+    "latitude": 12.8320,
+    "longitude": 80.2340
   }
 ]
