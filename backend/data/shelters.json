@@ -1,0 +1,59 @@
+[
+  {
+    "shelter_id": "S01",
+    "name": "Sushil Hari International Residential School",
+    "address": "Sri Ramarajya Campus, Vandalur Road, Kelambakkam, Tamil Nadu - 603103",
+    "latitude": 12.7937084,
+    "longitude": 80.2000069,
+    "capacity": 4500,
+    "occupancy": 0,
+    "available_capacity": 4500,
+    "accessibility": true,
+    "is_available": false,
+    "is_full": false,
+    "capacity_source": "Chengalpattu District Disaster Management Plan 2020",
+    "status_note": "Permanently closed"
+  },
+  {
+    "shelter_id": "S02",
+    "name": "St. Mary's Matriculation Higher Secondary School",
+    "address": "3/243, Bajana Kovil Street, Ganapathy Nagar, Kelambakkam, Tamil Nadu - 603103",
+    "latitude": 12.786187,
+    "longitude": 80.215199,
+    "capacity": 1000,
+    "occupancy": 0,
+    "available_capacity": 1000,
+    "accessibility": true,
+    "is_available": true,
+    "is_full": false,
+    "capacity_source": "Chengalpattu District Disaster Management Plan 2020"
+  },
+  {
+    "shelter_id": "S03",
+    "name": "Bhuvana Krishana Matriculation Higher Secondary School",
+    "address": "Q6QC+4RH, Kelambakkam, Tamil Nadu - 603103",
+    "latitude": 12.7878259,
+    "longitude": 80.2195327,
+    "capacity": 2000,
+    "occupancy": 0,
+    "available_capacity": 2000,
+    "accessibility": true,
+    "is_available": true,
+    "is_full": false,
+    "capacity_source": "Chengalpattu District Disaster Management Plan 2020"
+  },
+  {
+    "shelter_id": "S04",
+    "name": "Government Higher Secondary School, Kelambakkam",
+    "address": "Q6MC+XGM, Sri Nagar, Kelambakkam, Tamil Nadu - 603103",
+    "latitude": 12.7849576,
+    "longitude": 80.2187274,
+    "capacity": 1000,
+    "occupancy": 0,
+    "available_capacity": 1000,
+    "accessibility": true,
+    "is_available": true,
+    "is_full": false,
+    "capacity_source": "Chengalpattu District Disaster Management Plan 2020"
+  }
+]

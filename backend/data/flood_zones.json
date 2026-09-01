@@ -1,0 +1,17 @@
+[
+  {
+    "zone_id": "F01",
+    "area": "Kelambakkam Backwaters",
+    "latitude": 12.78661736,
+    "longitude": 80.23548034,
+    "risk_level": "high",
+    "water_depth_m": 0.8,
+    "road_status": "avoid",
+    "status": "simulated",
+    "data_basis": "Real geographic location of Kelambakkam backwaters",
+    "historical_flood_source": "NRSC/ISRO Flood Affected Area Atlas and Chengalpattu flood mapping",
+    "historical_event": "Michaung Cyclone flood mapping, 07-12-2023",
+    "historical_district_inundation_ha": 27474,
+    "source_note": "Current risk, water depth and road status are simulated for hackathon demonstration."
+  }
+]
