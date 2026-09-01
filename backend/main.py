@@ -286,7 +286,6 @@ def check_route_flood_risk(
 
                     highest_risk = "medium"
 
-    # Objective safety score
     if highest_risk == "high":
 
         safety_score = 40
@@ -331,7 +330,6 @@ def resolve_profile(request):
         or "normal"
     ).lower()
 
-    # Elderly profile
     if mobility in [
         "elderly",
         "senior",
@@ -339,7 +337,6 @@ def resolve_profile(request):
     ]:
         return "elderly"
 
-    # Two wheeler profile
     if transport in [
         "two_wheeler",
         "two-wheeler",
@@ -348,7 +345,6 @@ def resolve_profile(request):
     ]:
         return "two_wheeler"
 
-    # Four wheeler profile
     if transport in [
         "four_wheeler",
         "four-wheeler",
@@ -357,8 +353,322 @@ def resolve_profile(request):
     ]:
         return "four_wheeler"
 
-    # Default
     return "walking"
+
+
+# ============================================================
+# NAVIGATION STEP HELPERS
+# ============================================================
+
+def format_distance(meters):
+    """
+    Convert OSRM distance in meters
+    into a user-friendly string.
+    """
+
+    if meters is None:
+        return ""
+
+    if meters < 1000:
+        return f"{round(meters)} m"
+
+    return f"{meters / 1000:.1f} km"
+
+
+def get_step_icon(maneuver_type, modifier=None):
+
+    modifier = (modifier or "").lower()
+    maneuver_type = (maneuver_type or "").lower()
+
+    if maneuver_type == "depart":
+        return "start"
+
+    if maneuver_type == "arrive":
+        return "destination"
+
+    if modifier == "left":
+        return "left"
+
+    if modifier == "right":
+        return "right"
+
+    if modifier == "slight left":
+        return "slight_left"
+
+    if modifier == "slight right":
+        return "slight_right"
+
+    return "straight"
+
+
+def build_instruction(
+    maneuver_type,
+    modifier,
+    street_name,
+    distance_meters
+):
+
+    maneuver_type = (
+        maneuver_type or ""
+    ).lower()
+
+    modifier = (
+        modifier or ""
+    ).lower()
+
+    street_name = (
+        street_name or ""
+    ).strip()
+
+    distance_text = format_distance(
+        distance_meters
+    )
+
+    # --------------------------------------------------------
+    # START
+    # --------------------------------------------------------
+
+    if maneuver_type == "depart":
+
+        if street_name:
+            return f"Start and head onto {street_name}"
+
+        return "Start from your current location"
+
+    # --------------------------------------------------------
+    # ARRIVAL
+    # --------------------------------------------------------
+
+    if maneuver_type == "arrive":
+
+        return "Arrive at the evacuation shelter"
+
+    # --------------------------------------------------------
+    # U-TURN
+    # --------------------------------------------------------
+
+    if maneuver_type == "uturn":
+
+        if street_name:
+            return f"Make a U-turn onto {street_name}"
+
+        return "Make a U-turn"
+
+    # --------------------------------------------------------
+    # ROUNDABOUT
+    # --------------------------------------------------------
+
+    if maneuver_type == "roundabout":
+
+        if street_name:
+            return f"Take the roundabout toward {street_name}"
+
+        return "Continue through the roundabout"
+
+    # --------------------------------------------------------
+    # TURN
+    # --------------------------------------------------------
+
+    if maneuver_type in [
+        "turn",
+        "on ramp",
+        "off ramp",
+        "fork",
+        "end of road"
+    ]:
+
+        if modifier == "left":
+
+            if street_name:
+                return f"Turn left onto {street_name}"
+
+            return "Turn left"
+
+        if modifier == "right":
+
+            if street_name:
+                return f"Turn right onto {street_name}"
+
+            return "Turn right"
+
+        if modifier == "slight left":
+
+            if street_name:
+                return f"Bear slightly left onto {street_name}"
+
+            return "Bear slightly left"
+
+        if modifier == "slight right":
+
+            if street_name:
+                return f"Bear slightly right onto {street_name}"
+
+            return "Bear slightly right"
+
+    # --------------------------------------------------------
+    # CONTINUE
+    # --------------------------------------------------------
+
+    if street_name:
+
+        if distance_text:
+            return (
+                f"Continue on {street_name} "
+                f"for {distance_text}"
+            )
+
+        return f"Continue on {street_name}"
+
+    if distance_text:
+
+        return (
+            f"Continue straight "
+            f"for {distance_text}"
+        )
+
+    return "Continue straight"
+
+
+def build_navigation_steps(
+    legs,
+    shelter_name
+):
+
+    steps = []
+
+    step_counter = 1
+
+    for leg in legs or []:
+
+        for osrm_step in leg.get(
+            "steps",
+            []
+        ):
+
+            maneuver = osrm_step.get(
+                "maneuver",
+                {}
+            )
+
+            maneuver_type = maneuver.get(
+                "type",
+                ""
+            )
+
+            modifier = maneuver.get(
+                "modifier",
+                ""
+            )
+
+            street_name = (
+                osrm_step.get(
+                    "name",
+                    ""
+                )
+                or ""
+            ).strip()
+
+            distance_meters = osrm_step.get(
+                "distance",
+                0
+            )
+
+            instruction = build_instruction(
+                maneuver_type,
+                modifier,
+                street_name,
+                distance_meters
+            )
+
+            icon_type = get_step_icon(
+                maneuver_type,
+                modifier
+            )
+
+            note = None
+
+            # Give useful context when OSRM
+            # does not have a named road.
+
+            if (
+                not street_name
+                and maneuver_type
+                not in [
+                    "depart",
+                    "arrive"
+                ]
+            ):
+
+                note = (
+                    "Follow the highlighted "
+                    "evacuation route."
+                )
+
+            steps.append({
+
+                "id":
+                    f"step-{step_counter}",
+
+                "instruction":
+                    instruction,
+
+                "streetName":
+                    street_name
+                    or "Unnamed road",
+
+                "distance":
+                    format_distance(
+                        distance_meters
+                    ),
+
+                "iconType":
+                    icon_type,
+
+                "note":
+                    note
+            })
+
+            step_counter += 1
+
+    # --------------------------------------------------------
+    # Safety fallback
+    # --------------------------------------------------------
+
+    if not steps:
+
+        steps = [
+
+            {
+                "id": "step-1",
+                "instruction":
+                    "Start from your current location",
+                "streetName":
+                    "Current location",
+                "distance":
+                    "",
+                "iconType":
+                    "start",
+                "note":
+                    "Follow the highlighted evacuation route."
+            },
+
+            {
+                "id": "step-2",
+                "instruction":
+                    f"Arrive at {shelter_name}",
+                "streetName":
+                    shelter_name,
+                "distance":
+                    "",
+                "iconType":
+                    "destination",
+                "note":
+                    None
+            }
+
+        ]
+
+    return steps
 
 
 # ============================================================
@@ -371,6 +681,7 @@ def get_osrm_routes(
     destination_latitude,
     destination_longitude,
     shelter_id,
+    shelter_name="Evacuation Shelter",
     transport_mode="walking"
 ):
 
@@ -399,7 +710,11 @@ def get_osrm_routes(
     params = {
         "overview": "full",
         "geometries": "geojson",
-        "alternatives": "true"
+        "alternatives": "true",
+
+        # IMPORTANT:
+        # Ask OSRM for real turn-by-turn steps.
+        "steps": "true"
     }
 
 
@@ -479,9 +794,6 @@ def get_osrm_routes(
 
         if transport_mode == "walking":
 
-            # Realistic walking speed.
-            # Approximately 5 km/h.
-
             walking_speed_kmh = 5.0
 
             eta_minutes = round(
@@ -494,18 +806,26 @@ def get_osrm_routes(
 
         else:
 
-            # Vehicle ETA comes from OSRM.
-
             eta_minutes = round(
                 route["duration"] / 60
             )
 
 
-        # Prevent an impossible zero-minute ETA.
-
         eta_minutes = max(
             1,
             eta_minutes
+        )
+
+
+        # ----------------------------------------------------
+        # REAL TURN-BY-TURN NAVIGATION
+        # ----------------------------------------------------
+
+        navigation_steps = (
+            build_navigation_steps(
+                route.get("legs", []),
+                shelter_name
+            )
         )
 
 
@@ -534,6 +854,11 @@ def get_osrm_routes(
 
             "route_coordinates":
                 route_coordinates,
+
+            # NEW:
+            # Actual OSRM turn-by-turn instructions.
+            "steps":
+                navigation_steps,
 
             "flood_risk":
                 flood_result[
@@ -653,6 +978,9 @@ def build_candidate_routes(
                 shelter_id=
                     shelter["shelter_id"],
 
+                shelter_name=
+                    shelter["name"],
+
                 transport_mode=
                     transport_mode
             )
@@ -695,8 +1023,6 @@ def get_safest_route(
         request
     )
 
-
-    # P3 profile determines routing type.
 
     if profile in [
         "walking",
@@ -858,10 +1184,6 @@ def reroute(
 
     # --------------------------------------------------------
     # GENERATE ALTERNATE ROUTES
-    #
-    # IMPORTANT:
-    # The current shelter is also excluded.
-    # Therefore reroute MUST choose another shelter.
     # --------------------------------------------------------
 
     candidate_routes = (
@@ -885,11 +1207,6 @@ def reroute(
 
     # --------------------------------------------------------
     # EXTRA SAFETY CHECK
-    #
-    # Even after filtering inside
-    # build_candidate_routes(), make
-    # absolutely sure the current shelter
-    # cannot appear in the reroute result.
     # --------------------------------------------------------
 
     if request.shelter_id:
@@ -956,8 +1273,6 @@ def reroute(
 
     # --------------------------------------------------------
     # FINAL SAFETY CHECK
-    #
-    # Never return the same shelter.
     # --------------------------------------------------------
 
     if (
