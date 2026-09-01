@@ -1,0 +1,14 @@
+[
+  {
+    "id": "S1",
+    "name": "Shelter A",
+    "capacity": 100,
+    "occupied": 20
+  },
+  {
+    "id": "S2",
+    "name": "Shelter B",
+    "capacity": 100,
+    "occupied": 30
+  }
+]
